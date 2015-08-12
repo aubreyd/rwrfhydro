@@ -211,4 +211,56 @@ PlotWatBudg <- function(wbDf, plottyp="pie") {
         } # end bar
 }
 
+#' Plot point NetCDF station time series observations
+#'
+#' \code{PlotStationData} plots station observations from list containing data frame of time series
+#'
+#' \code{PlotStationData} plots station observation time series for all recorded variables
+#' 
+#'
+#' @param stnObs.list Full list of data output from ReadNearStationData, including time series data, list of units and filename
+#' @param stack (default=FALSE) if TRUE, instead of individual plots to click through, the output will be one page of stacked plots
+#'
+#' @return Plot comparison of model and station data
+#'
+#' @examples
+#' ## Plot Station Observations at a given station
+#' ## (Upper Canejos River, URG1)
+#' PlotStationData(URG1)
+#'
+#' @keywords IO
+#' @concept dataGet
+#' @family obsDataReads
+#' @export
+PlotStationData <- function(stnObs.list,stack=FALSE){
+  
+  stnObs.df <- stnObs.list[[1]]
+
+  stnObs.df[stnObs.df < -9999] <- NA ##remove -9999+ values
+  stnObs.df <- stnObs.df[ ,colSums(is.na(stnObs.df))<nrow(stnObs.df)] ##remove columns w/ all NA values
+  numplots <- length(stnObs.df) - 6
+  ynames <- colnames(stnObs.df)
+  
+  yind <- match(ynames,stnObs.list[[2]]$var)
+  
+  if(!stack){
+    par(ask=TRUE)
+    for(i in 1:numplots){
+      ##ylab <- paste(ynames[i]," ","(",units[[i]],")",sep="")
+      ylab <- paste(ynames[i]," ","(",stnObs.list[[2]]$unit[yind[i]],")",sep="")
+      plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab="Date",ylab=ylab,main=stnObs.list[[3]])}
+    }
+  
+  if(stack){
+    par(ask=FALSE)
+    layout(matrix(1:(numplots+1),ncol=1))
+    par(mar=c(0,6,0,1))
+    plot(stnObs.df$POSIXct,stnObs.df[,1],type='l',xlab='n',ylab=ynames[1],xaxt='n')
+    par(mar=c(0,6,0,1))
+    for(i in 2:(numplots-1)){plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab='n',ylab=ynames[i],xaxt='n')}
+    plot(stnObs.df$POSIXct,stnObs.df[,i+1],type='l',xlab="POSIXct",ylab=ynames[i+1])
+    
+  }
+  
+}
 

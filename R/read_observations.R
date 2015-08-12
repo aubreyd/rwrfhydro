@@ -301,20 +301,22 @@ ReadAmerifluxCSV <- function(pathFluxData, timeZone) {
 }
 #' Read point NetCDF station time series observations
 #'
-#' \code{ReadNearStationData} reads Ameriflux data table (Level 2 standardized
-#' NetCDF file) and creates a dataframe.
+#' \code{ReadNearStationData} reads station observation data table (point NetCDF file) and creates
+#'  a list containing dataframe of time series and metadata.
 #'
-#' \code{ReadNearStationData} reads an Ameriflux Level 2 standardized NetCDF file
+#' \code{ReadNearStationData} reads station observation  NetCDF file
 #' and outputs a dataframe with consistent date and data columns for use with
-#' other rwrfhydro tools.
+#' other rwrfhydro tools. Includes observation metadata useful for plotting.
 #'
 #' @param pathData The full pathname to the point NetCDF file 
 #'   \url{http://stat.ethz.ch/R-manual/R-devel/library/base/html/timezones.html}
-#' @return A dataframe containing station observations.
+#' @return A list containing station observations.
 #'
 #' @examples
 #' ## Takes a point NetCDF file of station observations
-#' ## (Rocky Mtn. Lodge) and returns a dataframe.
+#' ## (Upper Canejos River) and returns a dataframe.
+#' URG1 <- ReadNearStationData("URG1_Upper_Conejos_River_thru_Jul_1_2015.csv_filled.csv.nc")
+#' URG1[[1]] #data frame with observations
 #'
 #' @keywords IO
 #' @concept dataGet
@@ -325,19 +327,24 @@ ReadNearStationData <- function(pathData) {
     nc <- ncFile$nvars
     nr <- ncFile$var[[1]]$varsize
     outDf <- as.data.frame(matrix(nrow=nr, ncol=nc))
-    ncVarList <- list()
+    ncVarList <- list(var=c(),unit=c())
     for (i in 1:nc ) {
         ncVar <- ncFile$var[[i]]
-        ncVarList[i] <- ncVar$name
+        ncVarList$var[i] <- ncVar$name ; ncVarList$unit[i] <- ncVar$units
         outDf[,i] <- ncvar_get( ncFile, ncVar )
     }
-    colnames(outDf) <- ncVarList
-    orig <- "1970-01-01 00:00.00 UTC"
+    colnames(outDf) <- ncVarList$var
+##  orig <- "1970-01-01 00:00.00 UTC"
+    orig <- substr(ncFile$dim$time$units,15,nchar(ncFile$dim$time$units))
     temp_t <- ncFile$dim$time$vals
+    file <- ncFile$filename
     nc_close(ncFile)
     outDf$POSIXct <- as.POSIXct(temp_t,tz="GMT",origin=orig)
     outDf$wy <- ifelse(as.numeric(format(outDf$POSIXct, "%m"))>=10,
                         as.numeric(format(outDf$POSIXct,"%Y"))+1,
                         as.numeric(format(outDf$POSIXct,"%Y")))
-    return(outDf)
+    
+    outList <- list(outDf,ncVarList,file)
+    
+    return(outList)
 }
