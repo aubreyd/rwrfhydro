@@ -371,8 +371,9 @@ ReadNearStationData <- function(pathData) {
     outDf$wy <- ifelse(as.numeric(format(outDf$POSIXct, "%m"))>=10,
                         as.numeric(format(outDf$POSIXct,"%Y"))+1,
                         as.numeric(format(outDf$POSIXct,"%Y")))
-    
+
     outList <- list(outDf,ncVarList,file)
-    
+
     return(outList)
 }
+

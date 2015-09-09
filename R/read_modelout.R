@@ -297,3 +297,75 @@ ReadRtout <- function(pathOutdir, pathDomfile, mskvar="basn_msk", basid=1, ncore
    basnmsk
  }
 
+#'\code{ReadCustomModelOutput}
+#'Read in netcdf file of custom model output for comparison with URG meterological stations
+#'
+#'@param pathData location of the netcdf file to be opened
+#'@return list containing data frame of data, list of variables and filename
+#'@examples pathData <- "LDASOUT/2014100100.LDASOUT_DOMAIN2.newsnow"
+ReadCustomModelOutput <- function(pathData){
+  stations <- 65:70
+  ##id_lookup <- c(6,4,1,2,3,5)
+  id_lookup <- c(3,4,5,2,6,1)
+  ncFile <- ncdf4::nc_open(pathData)
+  attributes <- ncdf4::ncatt_get(ncFile,0)
+  times <- ncdf4::ncvar_get(ncFile,ncFile$var[[1]])
+  times <- strptime(times,tz="UTC",format="%Y-%m-%d_%H:%M:%S")
+  outDf <- as.data.frame(rep(times,6))
+  colnames(outDf) <- "POSIXct"
+  
+  nc <- ncFile$nvars
+  ncVarList <- list(var=c(),unit=c())
+  for(i in 1:nc){
+    ncVarList$var[i] <-  ncFile$var[[i]]$name
+    ncVarList$unit[i] <- ncFile$var[[i]]$units
+  }
+  
+  
+  ##first for loop does only 2 dimensional data 
+  for(i in 2:length(ncFile$var)){
+    if(ncFile$var[[i]]$ndims > 3){
+      temp <- ncdf4::ncvar_get(ncFile,ncFile$var[[i]])
+      tempname <- ncFile$var[[i]]$name
+      
+      split1 <- t(temp[1:70,1,1:6433])
+      split2 <- t(temp[1:70,2,1:6433])
+      split3 <- t(temp[1:70,3,1:6433])
+      
+      colnames(split1) <- 1:70
+      split1 <- reshape2::melt(split1[,stations])
+      colnames(split1) <- c("X1","stn",paste(tempname,"1",sep="_"))
+      
+      colnames(split2) <- 1:70
+      split2 <- reshape2::melt(split2[,stations])
+      colnames(split2) <- c("X1","stn", paste(tempname,"2",sep="_"))
+      
+      colnames(split3) <- 1:70
+      split3 <- reshape2::melt(split3[,stations])
+      colnames(split3) <- c("X1","stn", paste(tempname,"3",sep="_"))
+      
+      outDf <- cbind(outDf,split1[3],split2[3],split3[3])
+      tempunits <- ncFile$var[[i]]$unit
+    }
+    else{
+      ##if(ncFile$var[[i]]$ndims > 3){i = i+1} ##skip those w/ multiple dim for now
+      temp <- t(ncdf4::ncvar_get(ncFile,ncFile$var[[i]]))
+      tempname <- ncFile$var[[i]]$name
+      ##temp <- cbind(times,temp)
+      colnames(temp) <- 1:70
+      temp <- reshape2::melt(temp[,stations])
+      colnames(temp) <- c("X1","stn",tempname)
+      outDf <- cbind(outDf,temp[3])
+      tempunits <- ncFile$var[[i]]$unit
+      if(i == length(ncFile$var)){outDf <- cbind(outDf,temp[2])}
+    }
+  }
+  ##rename station numbers to match
+  for(i in 1:6){
+    outDf$stn[outDf$stn == stations[i]] <- id_lookup[i]
+  }
+  
+  outList <- list(outDf,ncVarList,attributes)
+  return(outList)
+}
+

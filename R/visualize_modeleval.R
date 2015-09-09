@@ -248,10 +248,11 @@ PlotWatBudg <- function(wbDf, plottyp="pie") {
 PlotStationData <- function(stnObs.list,stack=FALSE){
   
   stnObs.df <- stnObs.list[[1]]
-
+  
   stnObs.df[stnObs.df < -9999] <- NA ##remove -9999+ values
   stnObs.df <- stnObs.df[ ,colSums(is.na(stnObs.df))<nrow(stnObs.df)] ##remove columns w/ all NA values
   numplots <- length(stnObs.df) - 6
+  
   ynames <- colnames(stnObs.df)
   
   yind <- match(ynames,stnObs.list[[2]]$var)
@@ -259,21 +260,160 @@ PlotStationData <- function(stnObs.list,stack=FALSE){
   if(!stack){
     par(ask=TRUE)
     for(i in 1:numplots){
-      ##ylab <- paste(ynames[i]," ","(",units[[i]],")",sep="")
       ylab <- paste(ynames[i]," ","(",stnObs.list[[2]]$unit[yind[i]],")",sep="")
-      plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab="Date",ylab=ylab,main=stnObs.list[[3]])}
-    }
+      plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab="Date",ylab=ylab,main=stnObs.list[[3]],lwd=2,col="blue")}
+  }
   
   if(stack){
     par(ask=FALSE)
-    layout(matrix(1:(numplots+1),ncol=1))
+    par(oma=c(2,2,5,2))
     par(mar=c(0,6,0,1))
-    plot(stnObs.df$POSIXct,stnObs.df[,1],type='l',xlab='n',ylab=ynames[1],xaxt='n')
+    ifelse(numplots %% 2 == 0,layout(matrix(1:(numplots+2),ncol=2)),layout(matrix(1:(numplots+1),ncol=2)))
+    ylab <- paste(ynames[1]," ","(",stnObs.list[[2]]$unit[yind[1]],")",sep="")
+    plot(stnObs.df$POSIXct,stnObs.df[,1],type='l',xlab='POSIXct',ylab=ylab,col="blue")  ##xact='n' if want to remove
+    mtext(stnObs.list[[3]],side=3,line=3)
     par(mar=c(0,6,0,1))
-    for(i in 2:(numplots-1)){plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab='n',ylab=ynames[i],xaxt='n')}
-    plot(stnObs.df$POSIXct,stnObs.df[,i+1],type='l',xlab="POSIXct",ylab=ynames[i+1])
-    
+    for(i in 2:(numplots-1)){
+      ylab <- paste(ynames[i]," ","(",stnObs.list[[2]]$unit[yind[i]],")",sep="")
+      plot(stnObs.df$POSIXct,stnObs.df[,i],type='l',xlab="POSIXct",ylab=ylab,col="blue")
+    }
+    ylab <- paste(ynames[i+1]," ","(",stnObs.list[[2]]$unit[yind[i+1]],")",sep="")
+    plot(stnObs.df$POSIXct,stnObs.df[,i+1],type='l',xlab="POSIXct",ylab=ylab,col="blue")
   }
   
+}
+
+
+#'Plot modeled and observed temperature, SW radiation, snow depth and precipitation (if available)
+#'
+#'\code{PlotCustomModelStations} Plots both met. station data and model output for comparsion
+#'
+#'@param MetStn observed data from meteorological station
+#'@param CustomModel Custom WRF-Hydro model output with 1-6 Upper Rio Grande stations
+#'@param stn_no Number 1-6 in reference to the specific URG station
+#'@param stack FALSE is default, TRUE for all plots on one page
+#'
+#'@return nothing
+#'
+#'@example PlotCusstomModelStations(URG3,LDASout,3) ##plot of Platoro Cabin temperature, solar radiation, snow depth and precipitation
+#'@example PlotCustomModelStations(URG3,LDASout,3,TRUE) ##all plots on one page
+
+PlotCustomModelStations <- function(MetStn,CustomModel,stn_no,stack=FALSE){
+  
+  stn_names <- c("Upper Conejos above Platoro","Red Mountain","Platoro Cabin","Nathan's Cabin","Forest King", "Rocky Mountain Estates")
+  file_names <- c("Upper_Conejos_abv_Platoro","Red_Mountain","Platoro_cabin","Nathans_Cabin","Forest_King","Rcky_Mtn_Estates_estim")
+  stn <- stn_names[stn_no]
+
+  ##convert 15min station to hourly
+  MetStn[[1]]$Hour <- as.character(trunc(as.POSIXct(format(MetStn[[1]]$POSIXct, tz="UTC"), tz="UTC"), "hours"))
+  MetStn[[1]]$POSIXct <- NULL ##get rid of POXIXct because R won't handle it
+  MetStn_hr <- plyr::ddply(MetStn[[1]],plyr::.(Hour),
+                           plyr::summarise,
+                           RH_mean=mean(relative_humidity, na.rm=TRUE),
+                           T_mean=mean(temperature, na.rm=TRUE),
+                           Wind_mean=mean(wind, na.rm=TRUE),
+                           WindDir_mean=mean(wdirection, na.rm=TRUE),
+                           SoilTemp1_mean=mean(Soil_Temp1, na.rm=TRUE),
+                           SM1_mean=mean(Soil_moist1, na.rm=TRUE),
+                           SoilTemp2_mean=mean(Soil_Temp2, na.rm=TRUE),
+                           SM2_mean=mean(Soil_moist2, na.rm=TRUE),
+                           SnoDep_mean=mean(snow_depth, na.rm=TRUE),
+                           SWRad_mean=mean(shortwave_radiation, na.rm=TRUE),
+                           LeafWet_mean=mean(Leaf_Wetness, na.rm=TRUE),
+                           ##PrecAcc_max=max(Total_Accumulated_Precipitation, na.rm=TRUE),
+                           ##PrecTot=sum(Prec_mm, na.rm=TRUE),
+                           ##PrecInt_mean=mean(Precipitation_Intensity, na.rm=TRUE),
+                           ##SurfPress_mean=mean(Surface_Pressure, na.rm=TRUE),
+                           .parallel=FALSE)
+  if("Total_Accumulated_Precipitation" %in% colnames(MetStn[[1]])){
+    hrlyprcp <- plyr::ddply(MetStn[[1]],plyr::.(Hour),
+                            plyr::summarise,
+                            PrecAcc_max=max(Total_Accumulated_Precipitation, na.rm=TRUE),
+                            .parallel=FALSE)
+    
+      MetStn_hr <- cbind(MetStn_hr,hrlyprcp)
+    }
+  
+  MetStn_hr$Hour <- as.POSIXct(MetStn_hr$Hour,tz="UTC",format="%F %R") ##make back to POSIX to actually plot
+  
+  if(!stack){
+    ##temperature
+    par(ask=TRUE)
+    CustomModel[[1]]$mod_K <- CustomModel[[1]]$T2MV - 273.15
+    plot(MetStn_hr$Hour,MetStn_hr$T_mean,
+         lwd=3,type="l",col="blue",xlab="Date",ylab="Temperature (deg C)",main=stn,ylim=c(-30,30),sub="Water Year 2015")
+    lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$mod_K[which(CustomModel[[1]]$stn == stn_no)],
+          type="l",col="red",lwd=2)
+    legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+    
+    ##solar radaiation
+    MetStn_hr$SWRad_mean[MetStn_hr$SWRad_mean < -9999] <- NA  ###gets rid of large negatives in place of missing values
+    plot(MetStn_hr$Hour,MetStn_hr$SWRad_mean,
+         lwd=3,type="l",col="blue",xlab="Date",ylab="Solar Radiation (W m-2)",main=stn,ylim=c(0,1300),sub="Water Year 2015")
+    lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$FSA[which(CustomModel[[1]]$stn == stn_no)],
+          type="l",col="red",lwd=2)
+    legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+
+    ##snow depth
+    CustomModel[[1]]$Dsnow_1000 <- CustomModel[[1]]$SNOWH * 1000
+    plot(MetStn_hr$Hour,MetStn_hr$SnoDep_mean,
+         lwd=3,type="l",col="blue",xlab="Date",ylab="Snow Depth (mm)",main=stn,ylim=c(0,1400),sub="Water Year 2015")
+    lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$Dsnow_1000[which(CustomModel[[1]]$stn == stn_no)],
+          type="l",col="red",lwd=2)
+    legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+
+    ##precipitation
+    if(stn_no == 3 | stn_no == 6){
+      start_t <- MetStn_hr$Hour[1]
+      cm_subp <- cumsum(CustomModel[[1]]$RAINRATE[which(CustomModel[[1]]$stn == stn_no & CustomModel[[1]]$POSIXct >= start_t)])
+      cm_subt <- CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no & CustomModel[[1]]$POSIXct >= start_t)]
+      plot(MetStn_hr$Hour,MetStn_hr$PrecAcc_max,
+           lwd=3,type="l",col="blue",xlab="Date",ylab="Accumulated Precipitation (mm)",main=stn,ylim=c(0,625),sub="Water Year 2015")
+      lines(cm_subt,cm_subp,type="l",col="red",lwd=2)
+      legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+      }
+  }
+  
+  if(stack){
+    par(ask=FALSE,oma=c(2,2,5,2))
+        par(mar=c(0,6,0,1))
+        layout(matrix(1:4,ncol=2))
+               CustomModel[[1]]$mod_K <- CustomModel[[1]]$T2MV - 273.15
+               plot(MetStn_hr$Hour,MetStn_hr$T_mean,
+                    lwd=3,type="l",col="blue",xlab="Date",ylab="Temperature (deg C)",ylim=c(-30,30),sub="Water Year 2015")
+               lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$mod_K[which(CustomModel[[1]]$stn == stn_no)],
+                     type="l",col="red",lwd=2)
+               legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+               mtext(stn,side=3,line=3)
+               
+        
+               ##solar radaiation
+               MetStn_hr$SWRad_mean[MetStn_hr$SWRad_mean < -9999] <- NA  ###gets rid of large negatives in place of missing values
+               plot(MetStn_hr$Hour,MetStn_hr$SWRad_mean,
+                    lwd=3,type="l",col="blue",xlab="Date",ylab="Solar Radiation (W m-2)",ylim=c(0,1300),sub="Water Year 2015")
+               lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$FSA[which(CustomModel[[1]]$stn == stn_no)],
+                     type="l",col="red",lwd=2)
+               legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+               
+               ##snow depth
+               CustomModel[[1]]$Dsnow_1000 <- CustomModel[[1]]$SNOWH * 1000
+               plot(MetStn_hr$Hour,MetStn_hr$SnoDep_mean,
+                    lwd=3,type="l",col="blue",xlab="Date",ylab="Snow Depth (mm)",ylim=c(0,1400),sub="Water Year 2015")
+               lines(CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no)],CustomModel[[1]]$Dsnow_1000[which(CustomModel[[1]]$stn == stn_no)],
+                     type="l",col="red",lwd=2)
+               legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+               
+               ##precipitation
+               if(stn_no == 3 | stn_no == 6){
+                 start_t <- MetStn_hr$Hour[1]
+                 cm_subp <- cumsum(CustomModel[[1]]$RAINRATE[which(CustomModel[[1]]$stn == stn_no & CustomModel[[1]]$POSIXct >= start_t)])
+                 cm_subt <- CustomModel[[1]]$POSIXct[which(CustomModel[[1]]$stn == stn_no & CustomModel[[1]]$POSIXct >= start_t)]
+                 plot(MetStn_hr$Hour,MetStn_hr$PrecAcc_max,
+                      lwd=3,type="l",col="blue",xlab="Date",ylab="Accumulated Precipitation (mm)",ylim=c(0,625),sub="Water Year 2015")
+                 lines(cm_subt,cm_subp,type="l",col="red",lwd=2)
+                 legend("topleft",legend=c("Station","Model"),col=c("blue","red"),lty=c(1,1))
+               }
+  
+    }
 }
 
