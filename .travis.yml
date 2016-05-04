@@ -1,0 +1,35 @@
+language: r
+sudo: required
+os:
+- linux
+env:
+   global:
+     - CRAN: http://cran.rstudio.com
+     - BOOTSTRAP_LATEX=""
+     - NOT_CRAN="true" 
+
+before_install:
+- sudo apt-get update -qq
+- sudo apt-get install -qq netcdf-bin libnetcdf-dev
+- sudo apt-get install r-cran-rgdal ## this is 0.8.6, i believe.
+
+r_github_packages:
+  - yihui/printr
+  - aubreyd/modis4rwrfhydro
+
+warnings_are_errors: false
+
+r_check_args: "--no-vignettes --no-manual"
+
+r_build_args: "--no-build-vignettes --no-manual"
+
+branches:
+  except:
+  - procUsgs
+
+notifications:
+  email:
+    on_success: change
+    on_failure: change
+  slack:
+    secure: KPL84S2BG8i81aJcj4x0cjuoqq6tj92ziOmnqx1Yx5wLKHRSDgjc9N83I98rL/vuhEZLFHKcckJGGNgljDAwhfuH0IDq3DCTdlJ93wKIlRY/lvDVMHVSB6X38efuqtegv88ifyhtggtrU6P0vq+Hm/NWTJYVCNNZZpfVTnV8Hz8=
